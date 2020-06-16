@@ -3,7 +3,8 @@ const express = require("express");
 const ejs = require("ejs");
 const bodyParser = require("body-parser");
 const mongoose = require('mongoose');
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 //Initialize "app" via exxpress
 const app = express();
@@ -33,18 +34,8 @@ const userSchema = new mongoose.Schema({
 });
 
 const secret = process.env.SECRET;
-userSchema.plugin(encrypt, { secret: secret, encryptedFields: ["password"] });
 
 const User = mongoose.model('User', userSchema);
-
-
-// //example for creating and saving a new document based on the model defined previously
-// const user = new Article({ 
-//     title: 'React', 
-//     content: "React is a front end library that speeds app the development process" 
-// });
-
-// article1.save().then(() => console.log('saved article'));
 
 // HTTP requests to the home route
 app.route("/")
@@ -60,24 +51,29 @@ app.route("/login")
             if (err) {
                 console.log(err)
             } else if (foundUser) {
-                foundUser.password === password ? res.render("secrets") : res.send("Uh Oh! Check your Password, " + username)
+                bcrypt.compare(password, foundUser.password, (err, result) => {
+                    result === true ? res.render("secrets") : res.send("Uh Oh! Check your Password, " + username);
+                })
             } else {
-                res.send("User not found");
+                res.send("User not found")
             }
         })
-    });
+    })
 
 app.route("/register")
     .get((req, res) => { res.render("register") })
 
     .post((req, res) => {
-        const newUser = new User({
-            email: req.body.username,
-            password: req.body.password
-        });
+        bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+            const newUser = new User({
+                email: req.body.username,
+                password: hash
+            })
 
-        newUser.save((err) => {
-            err ? res.render("Sorry, Unable to create user") : res.render("secrets");
+            newUser.save((err) => {
+                err ? res.render("Sorry, Unable to create user") : res.render("secrets");
+            });
+
         })
     });
 
